@@ -1,0 +1,4 @@
+C:\Users\Laia\OneDrive\Escritorio\AI Coliseum - AIC2024\AIC2024\src\Astro\UnitPlayer.java:4: warning: ActiveObjectMap is internal proprietary API and may be removed in a future release
+import com.sun.corba.se.impl.oa.poa.ActiveObjectMap;
+                                   ^
+1 warning
