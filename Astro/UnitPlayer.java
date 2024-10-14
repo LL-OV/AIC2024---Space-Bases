@@ -215,7 +215,6 @@ class Astronauta {
 	public CarePackage getCarePackage() {
 		return carePackage;
 	}
-
 	public void setCarePackage(CarePackage cp) {
 		carePackage = cp;
 	}
@@ -252,6 +251,12 @@ class Astronauta {
 								break;
 							}
 
+						}
+					}
+
+					if(!construit) {
+						if (uc.canPerformAction(ActionType.BUILD_HYPERJUMP, Direction.ZERO, 0)) {
+							uc.performAction(ActionType.BUILD_HYPERJUMP, Direction.ZERO, 0);
 						}
 					}
 				}
@@ -393,7 +398,6 @@ public class UnitPlayer {
 		};
 
 
-
 		// Llista d'astronautes disponible
 		List<Integer> availableTypes = new ArrayList<>();
 		for (int type : zoneAstronautaType[zoneY * 3 + zoneX]) {
@@ -449,6 +453,64 @@ public class UnitPlayer {
 	} // 3 energy
 
 
+	// Moviment CarePackage i Hot Zones
+	private boolean especialPackage(CarePackage packageType) {
+		return (packageType == CarePackage.REINFORCED_SUIT || packageType == CarePackage.SURVIVAL_KIT);
+	}
+
+	private void prioritatPackage(CarePackageInfo[] arrayCarePackage, UnitController uc) {
+		// Prioritat de CarePackage
+		CarePackage[] prioritatCarePackage = {CarePackage.PLANTS, CarePackage.OXYGEN_TANK};
+
+		// Iterar sobre els package amb prioritat per saber si hi han
+		for (CarePackage prioritat : prioritatCarePackage) {
+			for (CarePackageInfo carePackageInfo : arrayCarePackage) {
+				if (carePackageInfo.getCarePackageType() == prioritat) {
+					moureCarePackage(CarePackageInfo, uc);
+					return;
+
+				}
+			}
+		}
+	}
+
+	private void moureCarePackage(UnitController uc) {
+		Location locationCarePackage = carePackageInfo.getLocation();
+		Direction directionCarePackage = uc.getLocation().directionTo(locationCarePackage);
+
+		if (uc.canPerformAction(ActionType.MOVE, directionCarePackage, 0) && (uc.senseObjectAtLocation(locationCarePackage) != MapObject.WATER)) {
+			uc.performAction(ActionType.MOVE, directionCarePackage, 0);
+			break;
+		}
+	}
+
+	private void moureHotZones(UnitController uc) {
+		if (uc.senseTileType(uc.getLocation()) != TileType.HOT_ZONE && (astro.getTipus() % 2 == 0)) {
+			Location[] arrayHotZone = uc.senseObjects(MapObject.HOT_ZONE, uc.getType().getVisionRange());
+
+			if (arrayHotZone.length > 0) {
+				moureDireccio(arrayHotZone[0], uc);
+			} else {
+				StructureInfo[] arrayStructure = uc.senseStructures(20, uc.getTeam());
+
+				if (arrayStructure.length > 0) {
+
+					for (StructureInfo structureInfo : arrayStructure) {
+						if (structureInfo.getType() == StructureType.SETTLEMENT && (structureInfo.getID() != uc.getParent().getID())) {
+							moureDireccio(structureInfo.getLocation(), uc);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	private void moureDireccio(Location location, UnitController uc) {
+		Direction direction = uc.getLocation().directionTo(location);
+		if (uc.canPerformAction(ActionType.MOVE, direction, 0)) {
+			uc.performAction(ActionType.MOVE, direction, 0);
+		}
+	}
 
 	@SuppressWarnings("InfiniteLoopStatement")
 	public void run(UnitController uc) {
@@ -470,7 +532,7 @@ public class UnitPlayer {
 			Direction randomDir = directions[dirIndex];
 
 			//Structure HQ
-			if (uc.isStructure() && uc.getType() == StructureType.HQ){
+			if (uc.isStructure() && (uc.getType() == StructureType.HQ ||uc.getType() StructureType.SETTLEMENT)){
 
 				//Comprovar si dintre del tang de visió hi ha algun enemic
 				AstronautInfo[] arrayAstronautesEnemics = uc.senseAstronauts(uc.getType().getVisionRange(), uc.getOpponent()); // 203 energy
@@ -478,66 +540,33 @@ public class UnitPlayer {
 
 				// Si s'ha trobat algun enemic
 				if(arrayAstronautesEnemics.length > 0){
-					AstronautInfo astronautInfo = arrayAstronautesEnemics[0];
-					Location locationEnemic = astronautInfo.getLocation();	// 1 energy
+					AstronautInfo enemic = arrayAstronautesEnemics[0];
+					Location enemicLocation = astronautInfo.getLocation();	// 1 energy
 
 					// Calcular direcció
-					Direction directionEnemic = uc.getLocation().directionTo(locationEnemic); // 5 energy
+					Direction enemicDirection = uc.getLocation().directionTo(locationEnemic); // 5 energy
 
 					// Crear astronauta cap aquella direcció
 					CarePackage cp = getPackageTypeAttack(uc,astro);
-					if(uc.canEnlistAstronaut(directionEnemic, 10, cp)) { // 20 energy
-						uc.enlistAstronaut(directionEnemic, 10, cp); // 20 energy
+					if(uc.canEnlistAstronaut(enemicLocation, 10, cp)) { // 20 energy
+						uc.enlistAstronaut(enemicLocation, 10, cp); // 20 energy
 
 					}
-					// No ha trobat enemics pel voltant
 
 				} else {
-					for (Direction dir : directions) {
-						CarePackage cp = getPackageType(uc, astro);
-						if (uc.canEnlistAstronaut(dir, astro.getOxigen(), cp)) {    // 20 energy
-							uc.enlistAstronaut(dir, astro.getOxigen(), cp);            // 20 energy
-
-							break;
+					// No ha trobat enemics pel voltant
+					if(uc.getRound() %2 == 0) {
+						for (Direction dir : directions) {
+							CarePackage cp = getPackageType(uc, astro);
+							if (uc.canEnlistAstronaut(dir, astro.getOxigen(), cp)) {    // 20 energy
+								uc.enlistAstronaut(dir, astro.getOxigen(), cp);            // 20 energy
+								break;
+							}
 						}
 					}
 				}
 
 			}
-
-			// Strucutre SETTLEMENT
-			else if(uc.isStructure() && uc.getType() == StructureType.SETTLEMENT) {
-				// Comprovar si hi ha algun enemic pel rang de visió
-				AstronautInfo[] arrayAstronautesEnemics = uc.senseAstronauts(uc.getType().getVisionRange(), uc.getOpponent()); // 203 energy
-
-				// Si s'ha trobat algun enemic
-				if(arrayAstronautesEnemics.length > 0) {
-					AstronautInfo astronautInfo = arrayAstronautesEnemics[0];
-					Location locationEnemic = astronautInfo.getLocation();	// 1 energy
-
-					// Calcular direcció
-					Direction directionEnemic = uc.getLocation().directionTo(locationEnemic); // 5 energy
-
-					// Crear astronauta cap aquella direcció
-					CarePackage cp = getPackageTypeAttack(uc,astro);
-					if(uc.canEnlistAstronaut(directionEnemic, 10, cp)) { // 20 energy
-						uc.enlistAstronaut(directionEnemic, 10, cp); // 20 energy
-					}
-					// No ha trobat enemics pel voltant
-
-				} else {
-
-					for (Direction dir : directions) {
-						CarePackage cp = getPackageType(uc, astro);
-						if (uc.canEnlistAstronaut(dir, astro.getOxigen(), cp)) {    // 20 energy
-							uc.enlistAstronaut(dir, astro.getOxigen(), cp);         // 20 energy
-							break;
-						}
-					}
-
-				}
-			}
-
 
 			//ASTRONAUTA
 			else if (!uc.isStructure()){
@@ -554,29 +583,13 @@ public class UnitPlayer {
 
 					directionAtacar = uc.getLocation().directionTo(locationEnemic); // 2 energy
 
-					/*
-					for (Direction direction : directions) {	// x8
-						Location adjLocation = uc.getLocation().add(direction);	// 3 energy
-						if (uc.senseStructure(adjLocation) != null) { // 10 energy
-							if (uc.senseStructure(adjLocation).getTeam() == uc.getOpponent() && uc.senseStructure(adjLocation).getType() == StructureType.HQ) {
-								if (uc.canPerformAction(ActionType.SABOTAGE, direction, 0)) {
-									uc.performAction(ActionType.SABOTAGE, direction, 0);
-
-									break;
-								}
-							}
-						}
-					}
-					 */
-
-
 				} else {
 					// Comprovar si hi ha algun enemic pel voltant
-					AstronautInfo[] arrayAstronautesEnemigs = uc.senseAstronauts(25, uc.getOpponent());
+					AstronautInfo[] arrayAstronautesEnemics = uc.senseAstronauts(25, uc.getOpponent());
 
-					if (arrayAstronautesEnemigs.length > 0) {
+					if (arrayAstronautesEnemics.length > 0) {
 						// Moure l'astronauta cap a l'enemic
-						AstronautInfo apropEnemic = arrayAstronautesEnemigs[0];
+						AstronautInfo apropEnemic = arrayAstronautesEnemics[0];
 						Location locationEnemic = apropEnemic.getLocation();	// 1 energy
 
 						directionAtacar = uc.getLocation().directionTo(locationEnemic); // 2 energy
@@ -599,62 +612,17 @@ public class UnitPlayer {
 					CarePackage packageEquipat = uc.getAstronautInfo().getCarePackage();
 
 					if (packageEquipat != null && (packageEquipat != CarePackage.REINFORCED_SUIT) && (packageEquipat != CarePackage.SURVIVAL_KIT)) {
-						String packageName = packageEquipat.toString();
-						astro.accionsPerPackage(uc, packageName, directions);
+						astro.accionsPerPackage(uc, equippedPackage.toString(), directions);
 					} else {
 
 						CarePackageInfo[] arrayCarePackage = uc.senseCarePackages(25);
 
 						if (arrayCarePackage.length > 0 && (uc.getAstronautInfo().getCarePackage() == null)) {
-
-							// Prioritat de CarePackage
-							CarePackage[] prioritatCarePackage = {CarePackage.PLANTS, CarePackage.OXYGEN_TANK};
-
-							// Iterar sobre els package amb prioritat per saber si hi han
-							for (CarePackage prioritat : prioritatCarePackage) {
-								for (CarePackageInfo carePackageInfo : arrayCarePackage) {
-									if (carePackageInfo.getCarePackageType() == prioritat) {
-
-										Location locationCarePackage = carePackageInfo.getLocation();
-
-										Direction directionCarePackage = uc.getLocation().directionTo(locationCarePackage);
-										if (uc.canPerformAction(ActionType.MOVE, directionCarePackage, 0) && (uc.senseObjectAtLocation(locationCarePackage) != MapObject.WATER)) {
-											uc.performAction(ActionType.MOVE, directionCarePackage, 0);
-											break;
-										}
-									}
-								}
-							}
-
-						} else if (uc.senseTileType(uc.getLocation()) != TileType.HOT_ZONE && (astro.getTipus() % 2 == 0) && (uc.getAstronautInfo().getCarePackage() == null)) {
-							Location[] arrayHotZone = uc.senseObjects(MapObject.HOT_ZONE, 25);
-
-							if (arrayHotZone.length > 0) {
-								Location locationHotZone = arrayHotZone[0];
-
-								Direction directionHotZone = uc.getLocation().directionTo(locationHotZone);
-
-								if (uc.canPerformAction(ActionType.MOVE, directionHotZone, 0)) {
-									uc.performAction(ActionType.MOVE, directionHotZone, 0);
-								}
-							} else {
-								StructureInfo[] arrayStructure = uc.senseStructures(20, uc.getTeam());
-
-								if (arrayStructure.length > 0) {
-
-									for (StructureInfo structureInfo : arrayStructure) {
-										if (structureInfo.getType() == StructureType.SETTLEMENT && (structureInfo.getID() != uc.getParent().getID())) {
-											Direction direction = uc.getLocation().directionTo(structureInfo.getLocation());
-
-											if (uc.canPerformAction(ActionType.MOVE, direction, 0)) {
-												uc.performAction(ActionType.MOVE, direction, 0);
-											}
-										}
-									}
-								}
-							}
+							prioritatPackage(arrayCarePackage, uc);
+						}else{
+							// No s'ha trobat paquets moures cap a HOT_ZONES
+							moureHotZones(uc);
 						}
-
 
 						// Moviments que ha d'executar l'astronauta si no es troba cap objecte d'interes
 						int tipus = astro.getTipus();
@@ -783,45 +751,49 @@ public class UnitPlayer {
 					}
 
 
-					//Hyperjump
+					//HYPERJUMP Acció astronauta
+					Direction randomDir = directions[(int) (uc.getRandomDouble() * 8.0)];
 
-					dirIndex = (int) (uc.getRandomDouble() * 8.0);
-					Direction randomDir1 = directions[dirIndex];
+					// Cap saltar cap a un enemic
+					AstronautInfo[] arrayAstronautesEnemics = uc.senseAstronauts(uc.getType().getVisionRange(), uc.getOpponent());
 
-					AstronautInfo[] arrayAstronautesEnemeics = uc.senseAstronauts(25, uc.getOpponent());
+					if (arrayAstronautesEnemics.length > 0) {
+						for (AstronautInfo enemic : arrayAstronautesEnemics) {
 
-					if (arrayAstronautesEnemeics.length > 0) {
-
-						for (AstronautInfo arrayAstronautesEnemeic : arrayAstronautesEnemeics) {
-
-							Location locationAstronautaEnemeic = arrayAstronautesEnemeic.getLocation();
-
-							Direction directionAstronautaEnemeic = uc.getLocation().directionTo(locationAstronautaEnemeic);
-
-							if (uc.canPerformAction(ActionType.JUMP, directionAstronautaEnemeic, 3)) {
-								uc.performAction(ActionType.JUMP, directionAstronautaEnemeic, 3);
-								break;
-							}
-						}
-
-					} else {
-						boolean salt = false;
-						for (Direction direction : directions) {
-							Location location = uc.getLocation().add(direction);
-							if (uc.senseObjectAtLocation(location) == MapObject.WATER) {
-								Direction direction1 = uc.getLocation().directionTo(location);
-								if (uc.canPerformAction(ActionType.JUMP, direction1, 3)) {
-									uc.performAction(ActionType.JUMP, direction1, 3);
-									salt = true;
+							Location locationAstronautaEnemic = enemic.getLocation();
+							Direction directionAstronautaEnemic = uc.getLocation().directionTo(locationAstronautaEnemic);
+							
+							if (uc.getLocation().distanceSquared(locationAstronautaEnemic) <= 3) {
+								// Si l'astronauta enemic està a una distància menor o igual a 3 caselles, salta fins a la seva ubicació
+								if (uc.canPerformAction(ActionType.JUMP, directionAstronautaEnemic, distancia)) {
+									uc.performAction(ActionType.JUMP, directionAstronautaEnemic, distancia);
+									break;
+								}
+							} else {
+								// Si l'astronauta enemic està a una distància major a 3 caselles, salta fins a una distància màxima de 3 caselles
+								if (uc.canPerformAction(ActionType.JUMP, directionAstronautaEnemic, 3)) {
+									uc.performAction(ActionType.JUMP, directionAstronautaEnemic, 3);
 									break;
 								}
 							}
 						}
 
-						if (!salt) {
-							if (uc.canPerformAction(ActionType.JUMP, randomDir1, 3)) {
-								uc.performAction(ActionType.JUMP, randomDir1, 3);
+					} else {
+						// No s'ha trobat enemics
+						for (Direction dir : directions) {
+							Location location = uc.getLocation().add(dir);
+							if (uc.senseObjectAtLocation(location) == MapObject.WATER) {
+								Direction directionAwayFromWater = uc.getLocation().directionTo(location);
+								if (uc.canPerformAction(ActionType.JUMP, directionAwayFromWater, 3)) {
+									uc.performAction(ActionType.JUMP, directionAwayFromWater, 3);
+									break;
+								}
 							}
+						}
+					
+						// No s'ha trobat cap MapObject per a poder saltar
+						if (uc.canPerformAction(ActionType.JUMP, randomDir, 3)) {
+							uc.performAction(ActionType.JUMP, randomDir, 3);
 						}
 					}
 

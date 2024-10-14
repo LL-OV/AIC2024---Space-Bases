@@ -254,6 +254,12 @@ class Astronauta {
 
 						}
 					}
+
+					if(!construit) {
+						if (uc.canPerformAction(ActionType.BUILD_HYPERJUMP, Direction.ZERO, 0)) {
+							uc.performAction(ActionType.BUILD_HYPERJUMP, Direction.ZERO, 0);
+						}
+					}
 				}
 
 				break;
@@ -493,12 +499,14 @@ public class UnitPlayer {
 					// No ha trobat enemics pel voltant
 
 				} else {
-					for (Direction dir : directions) {
-						CarePackage cp = getPackageType(uc, astro);
-						if (uc.canEnlistAstronaut(dir, astro.getOxigen(), cp)) {    // 20 energy
-							uc.enlistAstronaut(dir, astro.getOxigen(), cp);            // 20 energy
+					if(uc.getRound() %2 == 0) {
+						for (Direction dir : directions) {
+							CarePackage cp = getPackageType(uc, astro);
+							if (uc.canEnlistAstronaut(dir, astro.getOxigen(), cp)) {    // 20 energy
+								uc.enlistAstronaut(dir, astro.getOxigen(), cp);            // 20 energy
 
-							break;
+								break;
+							}
 						}
 					}
 				}
